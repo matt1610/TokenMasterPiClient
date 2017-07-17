@@ -1,0 +1,22 @@
+{
+  "name": "app",
+  "version": "1.0.1",
+  "description": "basic app example",
+  "main": "index.js",
+  "scripts": {
+    "start": "electron index.js"
+  },
+  "author": "Andrea Giammarchi",
+  "license": "MIT",
+  "dependencies": {
+    "benja": "latest",
+    "electron-debug": "^1.2.0",
+    "node-wifi": "^1.2.5",
+    "request": "^2.81.0"
+  },
+  "devDependencies": {
+    "devtron": "^1.4.0",
+    "electron": "latest",
+    "tiny-cdn": "latest"
+  }
+}

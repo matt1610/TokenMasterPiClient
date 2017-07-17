@@ -1,0 +1,513 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <script>
+    if (typeof module === 'object') { window.module = module; module = undefined; }
+  </script>
+  <script src="jquery-3.2.1.min.js"></script>
+  <script>
+    if (window.module) module = window.module;
+  </script>
+  <!-- to have access to local or global scripts -->
+  <script>
+    require(process.cwd() + '/node_modules/benja').paths();
+  </script>
+  <!-- for debugging purpose -->
+  <script>
+    document.documentElement.ondblclick = () => location.reload();
+  </script>
+
+
+
+  <script src="firebase.js"></script>
+  <script>
+    // Initialize Firebase
+    // TODO: Replace with your project's customized code snippet
+  </script>
+
+
+  <meta charset='utf-8'>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    html {
+      -webkit-box-sizing: border-box;
+      -moz-box-sizing: border-box;
+      box-sizing: border-box;
+      overflow: hidden;
+    }
+
+    body {
+      overflow: hidden;
+    }
+
+    *,
+    *:before,
+    *:after {
+      box-sizing: inherit;
+    }
+
+    body {
+      background: #292929;
+      color: #eeeeec;
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      height: 100vh;
+      padding: 0;
+      margin: 0;
+    }
+
+    h1 {
+      font-size: 1.5rem;
+      color: #ffffff;
+    }
+
+    h2 {
+      font-weight: lighter;
+      font-size: 1.2rem;
+      color: #8c8c8b;
+      margin-bottom: 0;
+    }
+
+    p:first-child {
+      font-weight: bold;
+    }
+
+    img {
+      width: 15vh;
+      height: 15vh;
+    }
+
+    .info p {
+      font-size: 10px;
+    }
+    /*video {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }*/
+
+    .slideShow {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-color: black;
+      display: none;
+    }
+
+    .slideShow img {
+      /*width: 100%;*/
+      height: 100%;
+    }
+
+    .slideShow .slide {
+      position: relative;
+    }
+  </style>
+  <title>Benja OS</title>
+</head>
+
+<body>
+  <header>
+    <!--<img src="logo-dark.svg">
+    <h1>B.E.N.J.A.</h1>
+    <h2>Bootable Electron Node JS Application</h2>-->
+  </header>
+  <main>
+    <!--<video width="640" height="480" src="DemoVideo.mov" autoplay></video>-->
+    <div class="_jsInfo info"></div>
+    <div class="_jsSlideShow slideShow"></div>
+  </main>
+  <script>
+    $(function () {
+
+      const main = document.querySelector('main');
+      var request = require('request');
+      var fs = require('fs');
+
+      const remote = require('electron').remote;
+      const app = remote.app;
+
+      var userDataPath = app.getPath('userData');
+      var mediaPath = userDataPath + "/media";
+      var playListName = "DemoList";
+
+      const videoExtensions = ['mov', 'mp4'];
+      const imageExtensions = ['jpg', 'jpeg', 'png'];
+
+      var downloadingFiles = false;
+
+      var filesOnTheDevice = 0;
+      var numberOfFilesInFb = 0;
+
+      var filesList = [];
+      var currentSlideindex = 0;
+
+      var slideShowStarted = false;
+
+      // deleteFiles();
+
+      fs.mkdir(mediaPath, res => {
+        console.log(res);
+      });
+
+      window.onerror = function (err) {
+        show(err);
+      };
+
+      var wifi = require('node-wifi');
+      let filesForSlideShow = [];
+
+      console.log(userDataPath);
+      show(mediaPath);
+
+      const findReachableIPV4Address = () => {
+        const ni = require('os').networkInterfaces();
+        return Object.keys(ni).reduce((out, key) => {
+          return ni[key].reduce((out, iface) => {
+            if (iface.family === 'IPv4' && iface.address !== '127.0.0.1') {
+              out.push(iface.address);
+            }
+            return out;
+          }, out);
+        }, []);
+      };
+
+
+      const ssid = "HUAWEI-B315-53F9";
+      const pass = "Starkey@12";
+
+      try {
+
+        wifi.init({
+          iface: null
+        });
+
+        show("Trying to connect to " + ssid);
+
+        wifi.connect({ ssid: ssid, password: pass }, function (err) {
+          if (err) {
+            console.log(err);
+
+            main.appendChild(
+              document.createElement('p')
+            ).textContent = JSON.stringify(err);
+          }
+
+          onConnected();
+
+          show("Connected to " + ssid)
+
+        });
+
+      } catch (error) {
+        main.appendChild(
+          document.createElement('p')
+        ).textContent = error;
+      }
+
+      function onConnected() {
+
+        console.log('Connected');
+
+        var config = {
+          apiKey: 'AIzaSyAfMqkPQNLDzfqcxNrOzDozCQwln3IayPY',
+          authDomain: 'videosdemo-cc2bb.firebaseapp.com',
+          databaseURL: 'https://videosdemo-cc2bb.firebaseio.com',
+          projectId: "videosdemo-cc2bb",
+          storageBucket: 'videosdemo-cc2bb.appspot.com',
+          messagingSenderId: '159053767309'
+        };
+        firebase.initializeApp(config);
+
+        var playlist = firebase.database().ref('playlists/' + playListName + '/files');
+        fs.mkdir(mediaPath + "/" + playListName, res => {
+          console.log(res);
+        });
+
+
+
+        // fetch('https://videosdemo-cc2bb.firebaseio.com/playlists/DemoList/files.json?shallow=true').then(function(res){console.log(res.blob())});
+
+        playlist.once('value', function (snapshot) {
+
+          for(prop in snapshot.val()) {
+            numberOfFilesInFb++;
+          }
+
+          snapshot.forEach(function (childSnapshot) {
+            var childKey = childSnapshot.key;
+            var childData = childSnapshot.val();
+            console.log(childData);
+
+            var rest = childData.name.substring(0, childData.name.lastIndexOf("."));
+            var last = childData.name.substring(childData.name.lastIndexOf(".") + 1, childData.name.length);
+
+            let theFileName = rest + "DURATION" + childData.duration + "." + last;
+
+            let filePath = mediaPath + "/" + childData.playlist + "/" + theFileName;
+
+            //Check if the file exists, if not, download it.
+            fs.access(filePath, (err) => {
+              if (!err) {
+                show(childData.name + ' already exists');
+                filesOnTheDevice++;
+                return;
+              }
+              downloadFile(childData.url, mediaPath + "/" + childData.playlist + "/" + childData.name, childData.name, childData.duration);
+            });
+          });
+
+          checkToStart(mediaPath + "/" + playListName);
+        });
+
+      }
+
+      function checkToStart(path) {
+        try {
+          getFilesAsync(path).then((files) => {
+            if (filesOnTheDevice > 0 && files.length > 0 && numberOfFilesInFb == files.length) {
+              renderSlideShow(files);
+            } else {
+              checkToStart();
+            }
+          });
+        } catch (err) {
+          show(show);
+        }
+      }
+
+      function deleteFiles() {
+
+        let path = mediaPath + "/" + playListName;
+
+        if (fs.existsSync(path)) {
+          fs.readdirSync(path).forEach(function (file) {
+            var curPath = path + "/" + file;
+            if (fs.statSync(curPath).isDirectory()) { // recurse
+              show("Deleted: " + curPath);
+              deleteFiles(curPath);
+            } else { // delete file
+              show("Deleted: " + curPath);
+              fs.unlinkSync(curPath);
+            }
+          });
+          fs.rmdirSync(path);
+        }
+
+      }
+
+      function getFilesAsync(path) {
+        return new Promise((resolve, reject) => {
+
+          let files = [];
+          fs.readdir(path, (err, items) => {
+
+            items.forEach((item, index) => {
+
+              let duration = 5000;
+
+              if (item[0] != '.') {
+                duration = item.split('DURATION')[1].split('.')[0];
+              }
+
+              let potentialFileObject = {
+                path: item,
+                slideTime: parseInt(duration)
+              };
+
+              let isVid = isVideo(potentialFileObject.path);
+              let isImg = isImage(potentialFileObject.path);
+
+              if (isVid || isImg && item[0] != '.') {
+                files.push(potentialFileObject);
+              }
+
+            });
+
+            resolve(files);
+          });
+
+
+
+        });
+      }
+
+      function show(text) {
+        let domElement = document.querySelector('._jsInfo').appendChild(
+          document.createElement('p')
+        ).textContent = text;
+      }
+
+      function isVideo(file) {
+        let fileExt = getFileExt(file);
+        return videoExtensions.indexOf(fileExt.toLowerCase()) > -1;
+      }
+
+      function isImage(file) {
+        let fileExt = getFileExt(file);
+        return imageExtensions.indexOf(fileExt.toLowerCase()) > -1;
+      }
+
+      function getFileExt(str) {
+        return str.slice(str.lastIndexOf('.') + 1);
+      }
+
+      function renderSlideShow(files) {
+
+        if (slideShowStarted) return;
+
+        slideShowStarted = true;
+
+        if (Array.isArray(files)) {
+
+          // $('._jsSlideShow').width(window.innerWidth * files.length);
+
+          files.forEach((item, index) => {
+
+            show("file://" + mediaPath + "/" + playListName + "/" + item.path + "");
+
+            let height = window.innerHeight;
+            let width = window.innerWidth;
+
+            if (isImage(item.path)) {
+              // $('._jsSlideShow').append(
+              //   '<img class="slide _jsSlide" style="left: ' + window.innerWidth * index + '; width: ' + window.innerWidth + 'px;" src="file://' + mediaPath + "/" + playListName + "/" + item.path + '">'
+              // );
+              $('._jsSlideShow').append(
+                '<img class="slide _jsSlide" style="left: 0; width:' + width + 'px;" src="file://' + mediaPath + "/" + playListName + "/" + item.path + '">'
+              );
+            }
+
+            if (isVideo(item.path)) {
+              // $('._jsSlideShow').append(
+              //   '<video id="' + item.path + '" height="' + window.innerHeight + '" width="' + window.innerWidth + '" src="file://' + mediaPath + "/" + playListName + "/" + item.path + '"></video>'
+              // );
+              $('._jsSlideShow').append(
+                '<video class="_jsSlide" id="' + item.path + '" style="left: 0;" height="' + height + '" width="' + width + '" src="file://' + mediaPath + "/" + playListName + "/" + item.path + '"></video>'
+              );
+            }
+
+          });
+        }
+
+        let count = 1;
+
+        $('._jsSlideShow').show();
+
+        doSlide(files[currentSlideindex].slideTime, files);
+      }
+
+      function doSlide(time, files) {
+
+        // if (isVideo(files[currentSlideindex].path)) {
+        //   document.getElementById(files[currentSlideindex].path).play();
+        // }
+
+        setTimeout(() => {
+
+
+
+          // if (currentSlideindex > files.length - 1) {
+          //   currentSlideindex = 0;
+          //   $('._jsSlideShow').css({ left: 0 + "px" });
+          // } else {
+          //   $('._jsSlideShow').animate({ left: -(window.innerWidth * currentSlideindex) + "px" });
+          // }
+
+          $('._jsSlide').hide();
+          $('._jsSlide').eq(currentSlideindex).show();
+
+          if ($('._jsSlide').eq(currentSlideindex).prop("tagName").toLowerCase() == "video") {
+            $('._jsSlide').eq(currentSlideindex).trigger('play');
+          }
+
+
+
+          doSlide(files[currentSlideindex].slideTime, files);
+
+          if (currentSlideindex == files.length - 1) {
+            currentSlideindex = 0;
+          } else {
+            currentSlideindex++;
+          }
+
+        }, time);
+
+      }
+
+      function displayErrors(error) {
+        main.appendChild(
+          document.createElement('p')
+        ).textContent = JSON.stringify(error);
+      }
+
+
+      function downloadFile(file_url, targetPath, fileName, duration) {
+
+        downloadingFiles = true;
+
+        show("Downloading " + fileName);
+        // Save variable to know progress
+        var received_bytes = 0;
+        // var total_bytes = 0;
+
+        var req = request({
+          method: 'GET',
+          uri: file_url
+        });
+
+        console.log(targetPath);
+
+        // if (isVideo(targetPath)) {
+        var rest = targetPath.substring(0, targetPath.lastIndexOf("."));
+        var last = targetPath.substring(targetPath.lastIndexOf("."), targetPath.length);
+
+        var slideTime = 'DURATION' + duration;
+
+        targetPath = rest + slideTime + last;
+
+        var out = fs.createWriteStream(targetPath);
+        req.pipe(out);
+
+        req.on('response', function (data) {
+          // Change the total bytes value to get progress later.
+          total_bytes = parseInt(data.headers['content-length']);
+        });
+
+        req.on('data', function (chunk) {
+          // Update the received bytes
+          received_bytes += chunk.length;
+
+          showProgress(received_bytes, total_bytes);
+        });
+
+        req.on('end', function () {
+          console.log("File successfully downloaded");
+          show("Succesfully downloaded " + fileName);
+          filesOnTheDevice++;
+          checkToStart(mediaPath + "/" + playListName);
+        });
+
+      }
+
+      function showProgress(received, total) {
+        var percentage = (received * 100) / total;
+        console.log(percentage + "% | " + received + " bytes out of " + total + " bytes.");
+      }
+
+
+
+    });
+  </script>
+</body>
+
+</html>
