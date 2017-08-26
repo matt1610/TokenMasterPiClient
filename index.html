@@ -2,10 +2,12 @@
 <html>
 
 <head>
+  <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u"
+    crossorigin="anonymous">
+
   <script>
     if (typeof module === 'object') { window.module = module; module = undefined; }
   </script>
-  <script src="jquery-3.2.1.min.js"></script>
   <script>
     if (window.module) module = window.module;
   </script>
@@ -76,11 +78,10 @@
     p:first-child {
       font-weight: bold;
     }
-
-    img {
+    /* img {
       width: 15vh;
       height: 15vh;
-    }
+    } */
 
     .info p {
       font-size: 10px;
@@ -111,8 +112,23 @@
     .slideShow .slide {
       position: relative;
     }
+
+    #qrcode {
+      position: absolute;
+      top: 0;
+      left: 0;
+    }
+    .qr {
+      margin-bottom: 110px;
+    }
+    .qr img {
+      margin: auto;
+    }
   </style>
   <title>Benja OS</title>
+  <script src="/js/jquery.js"></script>
+  <script src="/js/jquery.signalR-2.2.2.min.js"></script>
+  <script src="/js/qrcode.min.js"></script>
 </head>
 
 <body>
@@ -122,12 +138,53 @@
     <h2>Bootable Electron Node JS Application</h2>-->
   </header>
   <main>
-    <!--<video width="640" height="480" src="DemoVideo.mov" autoplay></video>-->
-    <div class="_jsInfo info"></div>
-    <div class="_jsSlideShow slideShow"></div>
+
+
+    <div class="container">
+      <div class="row">
+        <div class="col-md-12 col-sm-12">
+          <div id="deviceQr" class="qr"></div>
+          <div id="transactionsQr" class="qr"></div>
+        </div>
+      </div>
+      <div class="row">
+        <!--<div class="col-sm-4">
+          <div class="form-group">
+            <label for="usr">EventId:</label>
+            <input type="text" class="form-control _jsEventId" id="usr">
+          </div>
+          <div class="form-group">
+            <label for="pwd">StandId:</label>
+            <input type="text" class="form-control _jsStandId" id="pwd">
+          </div>
+          <div class="form-group">
+            <label for="pwd">DeviceId:</label>
+            <input type="text" class="form-control _jsDeviceId" id="pwd">
+          </div>
+          <button type="button" class="btn btn-success _jsConnect">Register Device</button>
+
+        </div>-->
+
+        <div class="col-md-6 col-sm-6 _jsTransactions">
+          <h2>Transactions</h2>
+        </div>
+        <div class="col-md-6 col-sm-6">
+          <div class="_jsInfo info"></div>
+        </div>
+      </div>
+    </div>
+
   </main>
+
+  <!--<script src="jquery-3.2.1.min.js"></script>-->
+
   <script>
     $(function () {
+
+      var deviceId = "a0d66e62-0768-4e98-9ad9-cb60ae504b21";
+      var deviceId = "658bacf7-6ffb-4f4f-9126-0a4f9fdb1b11";
+
+      var qrSize = 350;
 
       const main = document.querySelector('main');
       var request = require('request');
@@ -136,38 +193,12 @@
       const remote = require('electron').remote;
       const app = remote.app;
 
-      var userDataPath = app.getPath('userData');
-      var mediaPath = userDataPath + "/media";
-      var playListName = "DemoList";
-
-      const videoExtensions = ['mov', 'mp4'];
-      const imageExtensions = ['jpg', 'jpeg', 'png'];
-
-      var downloadingFiles = false;
-
-      var filesOnTheDevice = 0;
-      var numberOfFilesInFb = 0;
-
-      var filesList = [];
-      var currentSlideindex = 0;
-
-      var slideShowStarted = false;
-
-      // deleteFiles();
-
-      fs.mkdir(mediaPath, res => {
-        console.log(res);
-      });
-
       window.onerror = function (err) {
         show(err);
       };
 
       var wifi = require('node-wifi');
       let filesForSlideShow = [];
-
-      console.log(userDataPath);
-      show(mediaPath);
 
       const findReachableIPV4Address = () => {
         const ni = require('os').networkInterfaces();
@@ -184,6 +215,15 @@
 
       const ssid = "HUAWEI-B315-53F9";
       const pass = "Starkey@12";
+
+      var qrcode = new QRCode("deviceQr", {
+        text: deviceId,
+        width: qrSize,
+        height: qrSize,
+        colorDark: "#000000",
+        colorLight: "#ffffff",
+        correctLevel: QRCode.CorrectLevel.H
+      });
 
       try {
 
@@ -216,126 +256,46 @@
 
       function onConnected() {
 
-        console.log('Connected');
-
-        var config = {
-          apiKey: 'AIzaSyAfMqkPQNLDzfqcxNrOzDozCQwln3IayPY',
-          authDomain: 'videosdemo-cc2bb.firebaseapp.com',
-          databaseURL: 'https://videosdemo-cc2bb.firebaseio.com',
-          projectId: "videosdemo-cc2bb",
-          storageBucket: 'videosdemo-cc2bb.appspot.com',
-          messagingSenderId: '159053767309'
-        };
-        firebase.initializeApp(config);
-
-        var playlist = firebase.database().ref('playlists/' + playListName + '/files');
-        fs.mkdir(mediaPath + "/" + playListName, res => {
-          console.log(res);
+        var conn = $.hubConnection('http://tokenmaster.azurewebsites.net/');
+        var hub = conn.createHubProxy('TokenHub');
+        hub.on('registerSuccess', function (data) {
+          show(JSON.parse(data).Msg);
+          // $('#deviceQr').hide();
+        });
+        hub.on('receiveSuccessfullTransaction',
+          function (data) {
+            $('._jsTransactions').append('<button type="button" class="btn btn-success">' + data + '</button>');
+          });
+        hub.on('RETURNDEBUGDETAILS', function (eventId, standId, deviceId) {
+          $('._jsEventId').val(eventId);
+          $('._jsStandId').val(standId);
+          $('._jsDeviceId').val(deviceId);
+          hub.invoke("RegisterEventDevice", eventId, standId, deviceId);
         });
 
-        playlist.once('value', function (snapshot) {
-
-          for(prop in snapshot.val()) {
-            numberOfFilesInFb++;
+        hub.on('receiveEventDetails', function (did, standId, eventId) {
+          if (did == deviceId) {
+            hub.invoke("RegisterEventDevice", eventId, standId, did);
+          } else {
+            console.log('Not this device');
           }
-
-          snapshot.forEach(function (childSnapshot) {
-            var childKey = childSnapshot.key;
-            var childData = childSnapshot.val();
-            console.log(childData);
-
-            var rest = childData.name.substring(0, childData.name.lastIndexOf("."));
-            var last = childData.name.substring(childData.name.lastIndexOf(".") + 1, childData.name.length);
-
-            let theFileName = rest + "DURATION" + childData.duration + "." + last;
-
-            let filePath = mediaPath + "/" + childData.playlist + "/" + theFileName;
-
-            //Check if the file exists, if not, download it.
-            fs.access(filePath, (err) => {
-              if (!err) {
-                show(childData.name + ' already exists');
-                filesOnTheDevice++;
-                return;
-              }
-              downloadFile(childData.url, mediaPath + "/" + childData.playlist + "/" + childData.name, childData.name, childData.duration);
-            });
-          });
-
-          checkToStart(mediaPath + "/" + playListName);
         });
 
-      }
 
-      function checkToStart(path) {
-        try {
-          getFilesAsync(path).then((files) => {
-            if (filesOnTheDevice > 0 && files.length > 0 && numberOfFilesInFb == files.length) {
-              renderSlideShow(files);
-            } else {
-              checkToStart();
-            }
-          });
-        } catch (err) {
-          show(show);
-        }
-      }
-
-      function deleteFiles() {
-
-        let path = mediaPath + "/" + playListName;
-
-        if (fs.existsSync(path)) {
-          fs.readdirSync(path).forEach(function (file) {
-            var curPath = path + "/" + file;
-            if (fs.statSync(curPath).isDirectory()) { // recurse
-              show("Deleted: " + curPath);
-              deleteFiles(curPath);
-            } else { // delete file
-              show("Deleted: " + curPath);
-              fs.unlinkSync(curPath);
-            }
-          });
-          fs.rmdirSync(path);
-        }
-
-      }
-
-      function getFilesAsync(path) {
-        return new Promise((resolve, reject) => {
-
-          let files = [];
-          fs.readdir(path, (err, items) => {
-
-            items.forEach((item, index) => {
-
-              let duration = 5000;
-
-              if (item[0] != '.') {
-                duration = item.split('DURATION')[1].split('.')[0];
-              }
-
-              let potentialFileObject = {
-                path: item,
-                slideTime: parseInt(duration)
-              };
-
-              let isVid = isVideo(potentialFileObject.path);
-              let isImg = isImage(potentialFileObject.path);
-
-              if (isVid || isImg && item[0] != '.') {
-                files.push(potentialFileObject);
-              }
-
-            });
-
-            resolve(files);
-          });
-
-
-
+        //eventId, standId, deviceId.
+        conn.start({ withCredentials: false }, function () {
+          show("Websocket connection established, please register device...");
+          hub.invoke('GETDEBUGDETAILS');
         });
+        $('._jsConnect').on('click',
+          function (evt) {
+            //hub.invoke("RegisterEventDevice", "f43c8b28-dba2-45f8-b82e-a20e68ecd9a8", "13BE2FB0-9B4B-E711-9BEF-001C4287BE30", "deviceId");
+            hub.invoke("RegisterEventDevice", $('._jsEventId').val(), $('._jsStandId').val(), $('._jsDeviceId').val());
+          });
+
       }
+
+
 
       function show(text) {
         let domElement = document.querySelector('._jsInfo').appendChild(
@@ -343,83 +303,6 @@
         ).textContent = text;
       }
 
-      function isVideo(file) {
-        let fileExt = getFileExt(file);
-        return videoExtensions.indexOf(fileExt.toLowerCase()) > -1;
-      }
-
-      function isImage(file) {
-        let fileExt = getFileExt(file);
-        return imageExtensions.indexOf(fileExt.toLowerCase()) > -1;
-      }
-
-      function getFileExt(str) {
-        return str.slice(str.lastIndexOf('.') + 1);
-      }
-
-      function renderSlideShow(files) {
-
-        if (slideShowStarted) return;
-
-        slideShowStarted = true;
-
-        if (Array.isArray(files)) {
-
-          files.forEach((item, index) => {
-
-            show("file://" + mediaPath + "/" + playListName + "/" + item.path + "");
-
-            let height = window.innerHeight;
-            let width = window.innerWidth;
-
-            if (isImage(item.path)) {
-              $('._jsSlideShow').append(
-                '<img class="slide _jsSlide" style="left: 0; width:' + width + 'px;" src="file://' + mediaPath + "/" + playListName + "/" + item.path + '">'
-              );
-            }
-
-            if (isVideo(item.path)) {
-              $('._jsSlideShow').append(
-                '<video class="_jsSlide" id="' + item.path + '" style="left: 0;" height="' + height + '" width="' + width + '" src="file://' + mediaPath + "/" + playListName + "/" + item.path + '"></video>'
-              );
-            }
-
-          });
-        }
-
-        let count = 1;
-
-        $('._jsSlideShow').show();
-
-        doSlide(files[currentSlideindex].slideTime, files);
-      }
-
-      function doSlide(time, files) {
-
-        // if (isVideo(files[currentSlideindex].path)) {
-        //   document.getElementById(files[currentSlideindex].path).play();
-        // }
-
-        setTimeout(() => {
-
-          $('._jsSlide').hide();
-          $('._jsSlide').eq(currentSlideindex).show();
-
-          if ($('._jsSlide').eq(currentSlideindex).prop("tagName").toLowerCase() == "video") {
-            $('._jsSlide').eq(currentSlideindex).trigger('play');
-          }
-
-          doSlide(files[currentSlideindex].slideTime, files);
-
-          if (currentSlideindex == files.length - 1) {
-            currentSlideindex = 0;
-          } else {
-            currentSlideindex++;
-          }
-
-        }, time);
-
-      }
 
       function displayErrors(error) {
         main.appendChild(
@@ -427,57 +310,6 @@
         ).textContent = JSON.stringify(error);
       }
 
-
-      function downloadFile(file_url, targetPath, fileName, duration) {
-
-        downloadingFiles = true;
-
-        show("Downloading " + fileName);
-        // Save variable to know progress
-        var received_bytes = 0;
-        // var total_bytes = 0;
-
-        var req = request({
-          method: 'GET',
-          uri: file_url
-        });
-
-        console.log(targetPath);
-
-        // if (isVideo(targetPath)) {
-        var rest = targetPath.substring(0, targetPath.lastIndexOf("."));
-        var last = targetPath.substring(targetPath.lastIndexOf("."), targetPath.length);
-
-        var slideTime = 'DURATION' + duration;
-
-        targetPath = rest + slideTime + last;
-
-        var out = fs.createWriteStream(targetPath);
-        req.pipe(out);
-
-        req.on('response', function (data) {
-          total_bytes = parseInt(data.headers['content-length']);
-        });
-
-        req.on('data', function (chunk) {
-          received_bytes += chunk.length;
-
-          showProgress(received_bytes, total_bytes);
-        });
-
-        req.on('end', function () {
-          console.log("File successfully downloaded");
-          show("Succesfully downloaded " + fileName);
-          filesOnTheDevice++;
-          checkToStart(mediaPath + "/" + playListName);
-        });
-
-      }
-
-      function showProgress(received, total) {
-        var percentage = (received * 100) / total;
-        console.log(percentage + "% | " + received + " bytes out of " + total + " bytes.");
-      }
 
 
 

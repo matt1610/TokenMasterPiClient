@@ -31,7 +31,7 @@ app.once('ready', () => {
   // won't kill the view
   this.window = new BrowserWindow({
     backgroundColor: '#000000',
-    frame: false,
+    frame: true,
     // in some case kiosk: true is not working
     // same goes for fullscreen but this is working
     fullscreen: false,
